@@ -8,15 +8,13 @@
 
 // Function prototype for execute_command
 void execute_command(char *input) {
-    char *args[MAX_INPUT_SIZE / 2 + 1]; // Command line arguments
-    char *token = strtok(input, " "); // Tokenize input
-    int i = 0;
+    // Use the parsing function pto get arguments
+    char **args = parse_input(input);
 
-    while (token != NULL && i < (MAX_INPUT_SIZE / 2)) {
-        args[i++] = token; // Store each argument
-        token = strtok(NULL, " ");
+    // Check if parsing failed
+    if (args == NULL) {
+        return; // Exit if there was an error
     }
-    args[i] = NULL; // Null-terminate the array
 
     // Check for built-in commands
     if (strcmp(args[0], "ls") == 0) {
@@ -29,6 +27,9 @@ void execute_command(char *input) {
         // Handle external commands (you can add more logic here)
         printf("Command not found: %s\n", args[0]);
     }
+
+    // Free the allocated memory for args
+    free(args);
 }
 
 int main() {
