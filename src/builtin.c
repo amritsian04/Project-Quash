@@ -37,7 +37,8 @@ void add_job(pid_t pid, char **args) {
         jobs[num_jobs].pid = pid; // Store the process ID
         snprintf(jobs[num_jobs].command, sizeof(jobs[num_jobs].command), "%s", args[0]); // Store the command
         num_jobs++; // Increment the job count
-        printf("Background job started: [%d] %d %s\n", jobs[num_jobs - 1].job_id, pid, args[0]); // Print job info
+        // Print job information
+        printf("Background job started: [%d] %d %s &\n", jobs[num_jobs - 1].job_id, pid, args[0]);
     } else {
         printf("Too many background jobs running.\n");
     }
@@ -47,7 +48,7 @@ void add_job(pid_t pid, char **args) {
 void display_jobs() {
     printf("ID     PID     Command\n");
     for (int i = 0; i < num_jobs; i++) {
-        printf("[%d]    %d    %s\n", jobs[i].job_id, jobs[i].pid, jobs[i].command);
+        printf("[%d]    %d    %s &\n", jobs[i].job_id, jobs[i].pid, jobs[i].command);
     }
 }
 
@@ -58,6 +59,7 @@ void check_background_jobs() {
     for (int i = 0; i < num_jobs; i++) {
         pid = waitpid(jobs[i].pid, &status, WNOHANG);
         if (pid > 0) {
+            // Print completed job info
             printf("Completed: [%d] %d %s\n", jobs[i].job_id, jobs[i].pid, jobs[i].command);
             // Remove the completed job from the list
             remove_job(i);
@@ -66,6 +68,9 @@ void check_background_jobs() {
     }
 }
 
+// Built-in command implementations
+
+// Function to execute 'echo'
 void execute_echo(char **args) {
     for (int i = 1; args[i] != NULL; i++) {
         if (args[i][0] == '$') {
@@ -77,7 +82,7 @@ void execute_echo(char **args) {
                 printf("%s ", args[i]); // If the environment variable doesn't exist, print as is
             }
         } else {
-            // Only print the argument as is if it's not an environment variable (don't expand . or ..)
+            // Only print the argument as is if it's not an environment variable
             printf("%s ", args[i]);
         }
     }
@@ -94,9 +99,10 @@ void execute_pwd() {
     }
 }
 
+// Function to execute 'cd'
 void execute_cd(char **args) {
-    // If no argument is provided, change to home directory
     if (args[1] == NULL) {
+        // If no argument is provided, change to home directory
         char *home = getenv("HOME"); // Get home directory from environment variable
         if (home != NULL) {
             if (chdir(home) != 0) {
@@ -113,7 +119,7 @@ void execute_cd(char **args) {
     }
 }
 
-// Function to execute the 'export' command
+// Function to execute 'export'
 void execute_export(char **args) {
     if (args[1] == NULL) {
         fprintf(stderr, "export: missing argument\n"); // Print an error if no argument is provided

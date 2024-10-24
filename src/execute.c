@@ -10,7 +10,9 @@
 
 #define MAX_INPUT_SIZE 1024
 
-// Define PATH_MAX if it's not already defined
+// Declare num_jobs as an external variable to share with builtin.c
+extern int num_jobs;
+
 #ifndef PATH_MAX
 #define PATH_MAX 4096  // A common default value; adjust if necessary
 #endif
@@ -29,31 +31,7 @@ void expand_environment_variables(char **args) {
                     exit(EXIT_FAILURE);
                 }
                 strcpy(expanded_arg, env_var);
-
-                // Replace the argument with the expanded environment variable
-                args[i] = expanded_arg;
-            }
-        } else if (strstr(args[i], "$") != NULL) {
-            // Handle cases like $PWD/..
-            char *start = strchr(args[i], '$');
-            char *end = strchr(start, '/');
-            if (end != NULL) {
-                char var_name[256];
-                strncpy(var_name, start + 1, end - start - 1);
-                var_name[end - start - 1] = '\0';
-
-                char *env_var = getenv(var_name);
-                if (env_var != NULL) {
-                    char *expanded_arg = malloc(strlen(env_var) + strlen(end) + 1);
-                    if (expanded_arg == NULL) {
-                        perror("malloc");
-                        exit(EXIT_FAILURE);
-                    }
-                    strcpy(expanded_arg, env_var);
-                    strcat(expanded_arg, end);
-
-                    args[i] = expanded_arg;
-                }
+                args[i] = expanded_arg; // Replace argument with expanded value
             }
         }
     }
@@ -66,14 +44,12 @@ char* resolve_full_path(char *path) {
         perror("malloc");
         exit(EXIT_FAILURE);
     }
-
     // Use realpath to resolve relative paths like ../ and ./
     if (realpath(path, resolved_path) == NULL) {
         perror("realpath");
         free(resolved_path);
         return NULL; // Return NULL if path resolution fails
     }
-
     return resolved_path;
 }
 
@@ -90,28 +66,25 @@ void execute_command(char *input) {
     // Expand environment variables in the arguments
     expand_environment_variables(args);
 
-    // Only resolve paths for commands that need it (like cd), not for all arguments
-    if (strcmp(args[0], "cd") == 0) {
-        for (int i = 0; args[i] != NULL; i++) {
-            // Check if the argument is a path (starting with / or .)
-            if (args[i][0] == '/' || args[i][0] == '.') {
-                char *resolved_path = resolve_full_path(args[i]);
-                if (resolved_path != NULL) {
-                    args[i] = resolved_path;  // Replace with resolved path
-                }
-            }
+    // Check if the command ends with '&' indicating background execution
+    int is_background = 0;
+    for (int i = 0; args[i] != NULL; i++) {
+        if (strcmp(args[i], "&") == 0) {
+            is_background = 1;
+            args[i] = NULL;  // Remove '&' from the arguments
+            break;
         }
     }
 
-    // Check for built-in commands
+    // Built-in commands handling
     if (strcmp(args[0], "echo") == 0) {
-        execute_echo(args); // Execute 'echo' with arguments (no path resolution needed)
+        execute_echo(args);
     } else if (strcmp(args[0], "pwd") == 0) {
-        execute_pwd();  // Execute 'pwd' without arguments
+        execute_pwd();
     } else if (strcmp(args[0], "cd") == 0) {
-        execute_cd(args);  // Execute 'cd' command
+        execute_cd(args);
     } else if (strcmp(args[0], "export") == 0) {
-        execute_export(args);  // Execute 'export' command
+        execute_export(args);
     } else if (strcmp(args[0], "jobs") == 0) {
         display_jobs();  // Display all running background jobs
     } else {
@@ -124,15 +97,29 @@ void execute_command(char *input) {
             return;
         } else if (pid == 0) {
             // In child process, execute the command with arguments
-            if (execvp(args[0], args) == -1) {
-                // If execvp fails, print an error message
-                perror("execvp");
+            // If the command is not an absolute or relative path, search in PATH
+            if (args[0][0] != '/' && args[0][0] != '.') {
+                // Let execvp handle the PATH search
+                if (execvp(args[0], args) == -1) {
+                    perror("execvp");
+                }
+            } else {
+                // If it's an absolute or relative path, execute it directly
+                if (execvp(args[0], args) == -1) {
+                    perror("execvp");
+                }
             }
             exit(EXIT_FAILURE); // Exit child if exec fails
         } else {
-            // In parent process, wait for the child to finish
-            int status;
-            waitpid(pid, &status, 0);
+            if (is_background) {
+                // Add job to the job list for background execution
+                add_job(pid, args);
+                // Don't wait for the background process
+            } else {
+                // Foreground execution: wait for the child process to finish
+                int status;
+                waitpid(pid, &status, 0);
+            }
         }
     }
 
@@ -142,7 +129,6 @@ void execute_command(char *input) {
     // Check for any background jobs that have completed
     check_background_jobs();
 }
-
 
 int main() {
     char input[MAX_INPUT_SIZE];
