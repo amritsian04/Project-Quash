@@ -95,29 +95,21 @@ void execute_pwd() {
 }
 
 void execute_cd(char **args) {
+    // If no argument is provided, change to home directory
     if (args[1] == NULL) {
-        fprintf(stderr, "cd: missing argument\n"); // Print an error if no directory is provided
-        return;
-    }
-
-    // Check if the argument is an environment variable
-    if (args[1][0] == '$') {
-        char *env_var = getenv(args[1] + 1); // Skip the '$' character
-        if (env_var != NULL) {
-            // Change directory to the value of the environment variable
-            if (chdir(env_var) != 0) {
-                perror("chdir"); // Print an error if changing the directory fails
+        char *home = getenv("HOME"); // Get home directory from environment variable
+        if (home != NULL) {
+            if (chdir(home) != 0) {
+                perror("chdir"); // Print error if changing directory fails
             }
-            return;
         } else {
-            fprintf(stderr, "cd: no such variable: %s\n", args[1]); // Print error if variable doesn't exist
-            return;
+            fprintf(stderr, "HOME environment variable not set.\n");
         }
-    }
-
-    // If it's a normal directory, change to that directory
-    if (chdir(args[1]) != 0) {
-        perror("chdir"); // Print an error if changing the directory fails
+    } else {
+        // Change to the specified directory
+        if (chdir(args[1]) != 0) {
+            perror("chdir"); // Print error if changing directory fails
+        }
     }
 }
 
