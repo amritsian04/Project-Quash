@@ -90,13 +90,15 @@ void execute_command(char *input) {
     // Expand environment variables in the arguments
     expand_environment_variables(args);
 
-    // Resolve full path for commands like $PWD/..
-    for (int i = 0; args[i] != NULL; i++) {
-        // Check if the argument is a path (starting with / or .)
-        if (args[i][0] == '/' || args[i][0] == '.') {
-            char *resolved_path = resolve_full_path(args[i]);
-            if (resolved_path != NULL) {
-                args[i] = resolved_path;  // Replace with resolved path
+    // Only resolve paths for commands that need it (like cd), not for all arguments
+    if (strcmp(args[0], "cd") == 0 || strcmp(args[0], "ls") == 0) {
+        for (int i = 0; args[i] != NULL; i++) {
+            // Check if the argument is a path (starting with / or .)
+            if (args[i][0] == '/' || args[i][0] == '.') {
+                char *resolved_path = resolve_full_path(args[i]);
+                if (resolved_path != NULL) {
+                    args[i] = resolved_path;  // Replace with resolved path
+                }
             }
         }
     }
@@ -105,13 +107,15 @@ void execute_command(char *input) {
     if (strcmp(args[0], "ls") == 0) {
         execute_ls(args);  // Execute 'ls' with arguments
     } else if (strcmp(args[0], "echo") == 0) {
-        execute_echo(args); // Execute 'echo' with arguments
+        execute_echo(args); // Execute 'echo' with arguments (no path resolution needed)
     } else if (strcmp(args[0], "pwd") == 0) {
         execute_pwd();  // Execute 'pwd' without arguments
     } else if (strcmp(args[0], "cd") == 0) {
         execute_cd(args);  // Execute 'cd' command
     } else if (strcmp(args[0], "export") == 0) {
         execute_export(args);  // Execute 'export' command
+    } else if (strcmp(args[0], "jobs") == 0) {
+        display_jobs();  // Display all running background jobs
     } else {
         // Fork a new process for external commands with arguments (including environment variables)
         pid_t pid = fork();
@@ -136,7 +140,11 @@ void execute_command(char *input) {
 
     // Free the allocated memory for args
     free(args);
+    
+    // Check for any background jobs that have completed
+    check_background_jobs();
 }
+
 
 int main() {
     char input[MAX_INPUT_SIZE];

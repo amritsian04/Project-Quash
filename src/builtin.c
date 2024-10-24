@@ -6,6 +6,68 @@
 #include <sys/types.h> // For fork()
 #include <sys/wait.h> // For waitpid()
 #include "builtin.h"
+#define MAX_JOBS 100
+#define MAX_INPUT_SIZE 1024
+
+// Structure to hold job information
+struct Job {
+    int job_id;
+    pid_t pid;
+    char command[MAX_INPUT_SIZE];  // Stores the full command string for the job
+};
+
+struct Job jobs[MAX_JOBS]; wd // Array to hold background jobs
+int num_jobs = 0;  // To track the number of background jobs
+
+// Function to remove a job from the jobs list
+void remove_job(int index) {
+    if (index < 0 || index >= num_jobs) {
+        return; // Index out of bounds
+    }
+    // Shift jobs left to fill the gap created by the removal
+    for (int i = index; i < num_jobs - 1; i++) {
+        jobs[i] = jobs[i + 1];
+    }
+    num_jobs--; // Decrease the job count
+}
+
+// Function to add a background job
+void add_job(pid_t pid, char **args) {
+    if (num_jobs < MAX_JOBS) {
+        jobs[num_jobs].job_id = num_jobs + 1; // Assign job ID
+        jobs[num_jobs].pid = pid; // Store the process ID
+        snprintf(jobs[num_jobs].command, sizeof(jobs[num_jobs].command), "%s", args[0]); // Store the command
+        num_jobs++; // Increment the job count
+        printf("Background job started: [%d] %d %s\n", jobs[num_jobs - 1].job_id, pid, args[0]); // Print job info
+    } else {
+        printf("Too many background jobs running.\n");
+    }
+}
+
+// Function to display all running background jobs
+void display_jobs() {
+    printf("ID     PID     Command\n");
+    for (int i = 0; i < num_jobs; i++) {
+        printf("[%d]    %d    %s\n", jobs[i].job_id, jobs[i].pid, jobs[i].command);
+    }
+}
+
+// Function to check for background jobs that have completed
+void check_background_jobs() {
+    int status;
+    pid_t pid;
+    for (int i = 0; i < num_jobs; i++) {
+        pid = waitpid(jobs[i].pid, &status, WNOHANG);
+        if (pid > 0) {
+            printf("Completed: [%d] %d %s\n", jobs[i].job_id, jobs[i].pid, jobs[i].command);
+            // Remove the completed job from the list
+            remove_job(i);
+            i--;  // Adjust index to check the next job correctly
+        }
+    }
+}
+
+
 
 // Function to execute the 'ls' command, handling arguments
 void execute_ls(char **args) {
@@ -51,7 +113,6 @@ void execute_ls(char **args) {
     }
 }
 
-// Function to execute the 'echo' command with support for environment variables
 void execute_echo(char **args) {
     for (int i = 1; args[i] != NULL; i++) {
         if (args[i][0] == '$') {
@@ -63,7 +124,8 @@ void execute_echo(char **args) {
                 printf("%s ", args[i]); // If the environment variable doesn't exist, print as is
             }
         } else {
-            printf("%s ", args[i]); // Print each argument
+            // Only print the argument as is if it's not an environment variable (don't expand . or ..)
+            printf("%s ", args[i]);
         }
     }
     printf("\n"); // Print a newline after all arguments
@@ -79,14 +141,30 @@ void execute_pwd() {
     }
 }
 
-// Function to execute the 'cd' command
 void execute_cd(char **args) {
     if (args[1] == NULL) {
         fprintf(stderr, "cd: missing argument\n"); // Print an error if no directory is provided
-    } else {
-        if (chdir(args[1]) != 0) {
-            perror("chdir"); // Print an error if changing the directory fails
+        return;
+    }
+
+    // Check if the argument is an environment variable
+    if (args[1][0] == '$') {
+        char *env_var = getenv(args[1] + 1); // Skip the '$' character
+        if (env_var != NULL) {
+            // Change directory to the value of the environment variable
+            if (chdir(env_var) != 0) {
+                perror("chdir"); // Print an error if changing the directory fails
+            }
+            return;
+        } else {
+            fprintf(stderr, "cd: no such variable: %s\n", args[1]); // Print error if variable doesn't exist
+            return;
         }
+    }
+
+    // If it's a normal directory, change to that directory
+    if (chdir(args[1]) != 0) {
+        perror("chdir"); // Print an error if changing the directory fails
     }
 }
 
