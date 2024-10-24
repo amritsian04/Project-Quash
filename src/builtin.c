@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <dirent.h>
 #include <stdlib.h> // For getenv and setenv
 #include <sys/types.h> // For fork()
 #include <sys/wait.h> // For waitpid()
@@ -16,7 +15,7 @@ struct Job {
     char command[MAX_INPUT_SIZE];  // Stores the full command string for the job
 };
 
-struct Job jobs[MAX_JOBS]; wd // Array to hold background jobs
+struct Job jobs[MAX_JOBS]; // Array to hold background jobs
 int num_jobs = 0;  // To track the number of background jobs
 
 // Function to remove a job from the jobs list
@@ -64,52 +63,6 @@ void check_background_jobs() {
             remove_job(i);
             i--;  // Adjust index to check the next job correctly
         }
-    }
-}
-
-
-
-// Function to execute the 'ls' command, handling arguments
-void execute_ls(char **args) {
-    pid_t pid = fork(); // Create a new process
-
-    if (pid == -1) {
-        // Fork failed
-        perror("fork");
-        return;
-    } else if (pid == 0) {
-        // Child process: execute the command
-        if (args[1] != NULL) {
-            // Execute command with arguments using execvp
-            if (execvp(args[0], args) == -1) {
-                perror("execvp");
-            }
-        } else {
-            // Default behavior if no arguments are passed
-            struct dirent *entry; // Declare a pointer to struct dirent
-            DIR *dp = opendir("."); // Open the current directory
-
-            if (dp == NULL) { // Check if the directory was opened successfully
-                perror("opendir"); // Print error message if it failed
-                exit(EXIT_FAILURE); // Exit child process on failure
-            }
-
-            // Print each entry on the same line
-            while ((entry = readdir(dp)) != NULL) {
-                // Check if the entry is not "." or ".."
-                if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
-                    printf("%s ", entry->d_name); // Print the name followed by a space
-                }
-            }
-
-            printf("\n"); // Print a newline after all entries
-            closedir(dp); // Close the directory
-        }
-        exit(EXIT_SUCCESS); // Exit child process successfully
-    } else {
-        // Parent process: wait for the child process to finish
-        int status;
-        waitpid(pid, &status, 0); // Wait for child process
     }
 }
 

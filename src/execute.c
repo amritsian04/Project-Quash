@@ -91,7 +91,7 @@ void execute_command(char *input) {
     expand_environment_variables(args);
 
     // Only resolve paths for commands that need it (like cd), not for all arguments
-    if (strcmp(args[0], "cd") == 0 || strcmp(args[0], "ls") == 0) {
+    if (strcmp(args[0], "cd") == 0) {
         for (int i = 0; args[i] != NULL; i++) {
             // Check if the argument is a path (starting with / or .)
             if (args[i][0] == '/' || args[i][0] == '.') {
@@ -104,9 +104,7 @@ void execute_command(char *input) {
     }
 
     // Check for built-in commands
-    if (strcmp(args[0], "ls") == 0) {
-        execute_ls(args);  // Execute 'ls' with arguments
-    } else if (strcmp(args[0], "echo") == 0) {
+    if (strcmp(args[0], "echo") == 0) {
         execute_echo(args); // Execute 'echo' with arguments (no path resolution needed)
     } else if (strcmp(args[0], "pwd") == 0) {
         execute_pwd();  // Execute 'pwd' without arguments
@@ -140,7 +138,7 @@ void execute_command(char *input) {
 
     // Free the allocated memory for args
     free(args);
-    
+
     // Check for any background jobs that have completed
     check_background_jobs();
 }
