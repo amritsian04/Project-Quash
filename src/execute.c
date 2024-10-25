@@ -9,29 +9,46 @@
 #include "parse_interface.h" // Include your parsing header
 
 #define MAX_INPUT_SIZE 1024
+#define PATH_MAX 4096  // A common default value; adjust if necessary
 
 // Declare num_jobs as an external variable to share with builtin.c
 extern int num_jobs;
 
-#ifndef PATH_MAX
-#define PATH_MAX 4096  // A common default value; adjust if necessary
-#endif
-
 // Function to expand environment variables in the input arguments
 void expand_environment_variables(char **args) {
     for (int i = 0; args[i] != NULL; i++) {
-        if (args[i][0] == '$') {
-            // Strip the '$' and get the environment variable's value
-            char *env_var = getenv(args[i] + 1);
-            if (env_var != NULL) {
-                // Allocate a new string to hold the expanded value
-                char *expanded_arg = malloc(strlen(env_var) + 1);
+        char *arg = args[i];
+
+        // Check if the argument contains '$'
+        char *dollar_sign = strchr(arg, '$');
+        if (dollar_sign != NULL) {
+            // Get the environment variable name
+            char var_name[256] = {0}; // Temporary buffer for the environment variable name
+            int j = 0;
+            dollar_sign++;  // Move past the '$'
+            while (*dollar_sign != '/' && *dollar_sign != '\0' && j < sizeof(var_name) - 1) {
+                var_name[j++] = *dollar_sign++;
+            }
+            var_name[j] = '\0'; // Null-terminate the variable name
+
+            // Get the value of the environment variable
+            char *env_value = getenv(var_name);
+            if (env_value != NULL) {
+                // Calculate the length of the new expanded string
+                int expanded_len = strlen(env_value) + strlen(dollar_sign) + 1;
+                char *expanded_arg = malloc(expanded_len);
+
                 if (expanded_arg == NULL) {
                     perror("malloc");
                     exit(EXIT_FAILURE);
                 }
-                strcpy(expanded_arg, env_var);
-                args[i] = expanded_arg; // Replace argument with expanded value
+
+                // Construct the new string with the environment variable expanded
+                strcpy(expanded_arg, env_value);
+                strcat(expanded_arg, dollar_sign);  // Append the rest of the original string
+
+                // Replace the original argument with the expanded string
+                args[i] = expanded_arg;
             }
         }
     }
